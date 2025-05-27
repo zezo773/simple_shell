@@ -1,44 +1,70 @@
-#include "shell.h"
+#include "main.h"
 
-/**
- * main - entry point
- * @ac: arg count
- * @av: arg vector
- *
- * Return: 0 on success, 1 on error
- */
 int main(int ac, char **av)
 {
-	info_t info[] = { INFO_INIT };
-	int fd = 2;
+	char *prompt = "(Eshell) $ ";
+	char *line = NULL, *line_copy = NULL;
+	const char *delim = " \n";
+	size_t len = 0;
+	ssize_t read;
+	int num_tokens = 0;
+	char *token;
+	int i;
 
-	asm ("mov %1, %0\n\t"
-		"add $3, %0"
-		: "=r" (fd)
-		: "r" (fd));
+	(void) ac;
 
-	if (ac == 2)
+	/* create an infinite loop */
+	while (1)
 	{
-		fd = open(av[1], O_RDONLY);
-		if (fd == -1)
+		printf("%s", prompt);
+		read = getline(&line, &len, stdin);
+		/* check if the getline function failed or reached EOF or user use CTRL + D */
+		if (read == -1)
 		{
-			if (errno == EACCES)
-				exit(126);
-			if (errno == ENOENT)
-			{
-				_eputs(av[0]);
-				_eputs(": 0: Can't open ");
-				_eputs(av[1]);
-				_eputchar('\n');
-				_eputchar(BUF_FLUSH);
-				exit(127);
-			}
-			return (EXIT_FAILURE);
+			printf("\n");
+			return (-1);
 		}
-		info->readfd = fd;
+
+		/* allocate space for a copy of the lineptr */
+		line_copy = malloc(sizeof(char) * read);
+		if (line_copy == NULL)
+		{
+			perror("tsh: memory allocation error");
+			return (-1);
+		}
+
+		/* copy lineptr to lineptr_copy */
+		strcpy(line_copy, line);
+
+		/********** split the string (lineptr) into an array of words ********/
+		/* calculate the total number of tokens */
+		token = strtok(line, delim);
+
+		/* determine how many tokens are there*/
+		while (token != NULL)
+		{
+			num_tokens++;
+			token = strtok(NULL, delim);
+		}
+		num_tokens++;
+
+		/* Allocate space to hold the array of strings */
+		av = malloc(sizeof(char *) * num_tokens);
+
+		/* Store each token in the argv array */
+		token = strtok(line_copy, delim);
+		for (i = 0; token != NULL; i++)
+		{
+			av[i] = malloc(sizeof(char) * strlen(token));
+			strcpy(av[i], token);
+			token = strtok(NULL, delim);
+		}
+		av[i] = NULL;
+
+		execmd(av);
 	}
-	populate_env_list(info);
-	read_history(info);
-	hsh(info, av);
-	return (EXIT_SUCCESS);
+	free(line_copy);
+	free(line);
+
+	return (0);
 }
